@@ -1,2 +1,18 @@
+/* @import "tailwindcss"; */
 @import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+  /* Yahan image ka path dijiye */
+  background-image: url('./assets/background.jpg');
+  
+  /* Background setup */
+  background-size: cover;      /* Puri screen par photo fit ho jayegi */
+  background-position: center; /* Photo center mein rahegi */
+  background-repeat: no-repeat;
+  background-attachment: fixed; /* Scroll karne par background hilega nahi */
+  
+  min-height: 100vh;
+}
 
