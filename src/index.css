@@ -1,18 +1,52 @@
-/* @import "tailwindcss"; */
+/* index.css */
+
+/* ✅ @import SABSE PEHLE */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
 @import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
   padding: 0;
-  /* Yahan image ka path dijiye */
-  background-image: url('./assets/background.jpg');
-  
-  /* Background setup */
-  background-size: cover;      /* Puri screen par photo fit ho jayegi */
-  background-position: center; /* Photo center mein rahegi */
-  background-repeat: no-repeat;
-  background-attachment: fixed; /* Scroll karne par background hilega nahi */
-  
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif;
+  background-color: #000;
+  /* ❌ background-image yahan mat likho — App.tsx ka <img> handle karega */
   min-height: 100vh;
 }
 
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ── Select dropdown dark bg ── */
+select option {
+  background-color: #180d2e;
+  color: #ffffff;
+}

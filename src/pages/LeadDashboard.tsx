@@ -1,225 +1,332 @@
+// src/pages/LeadDashboard.tsx
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const LeadDashboard = ({ token, onLogout }: { token: string, onLogout: () => void }) => {
-  const [leads, setLeads] = useState([]);
-  const [name, setName] = useState('');
+interface Lead {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST';
+}
+
+interface Activity {
+  id: number;
+  activityType: 'CALL' | 'EMAIL' | 'MEETING';
+  details: string;
+  recordedByEmail: string;
+}
+
+interface Props {
+  token: string;
+  onLogout: () => void;
+}
+
+/* Status gradient pills */
+const STATUS_GRADIENT: Record<string, string> = {
+  NEW:       'from-cyan-500 to-blue-500',
+  CONTACTED: 'from-yellow-500 to-orange-500',
+  QUALIFIED: 'from-green-500 to-emerald-500',
+  LOST:      'from-red-500 to-pink-500',
+};
+
+/* Status outline badges (lead list) */
+const STATUS_BADGE: Record<string, string> = {
+  NEW:       'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30',
+  CONTACTED: 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30',
+  QUALIFIED: 'bg-green-500/15 text-green-300 border border-green-500/30',
+  LOST:      'bg-red-500/15 text-red-300 border border-red-500/30',
+};
+
+/* Avatar colour pairs */
+const AVATAR_STYLES = [
+  'bg-violet-500/25 text-violet-300',
+  'bg-cyan-500/25   text-cyan-300',
+  'bg-fuchsia-500/25 text-fuchsia-300',
+  'bg-emerald-500/25 text-emerald-300',
+  'bg-amber-500/25   text-amber-300',
+];
+
+function getInitials(name: string) {
+  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+/* Reusable glass-panel class strings */
+const GLASS_DARK  = 'bg-black/45 backdrop-blur-[36px] border border-white/10';
+const GLASS_PANEL = 'bg-black/40 backdrop-blur-[36px] border border-white/10';
+const GLASS_INPUT = 'bg-white/[0.06] border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-violet-500/60 transition-colors rounded-2xl';
+
+const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
+
+  const [leads, setLeads]               = useState<Lead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [activities, setActivities]     = useState<Activity[]>([]);
+
+  const [name,  setName]  = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState('');
 
-  // 🔥 ACTIVITIES STATES
-  const [selectedLead, setSelectedLead] = useState<any>(null);
-  const [activities, setActivities] = useState([]);
-  const [activityType, setActivityType] = useState('CALL');
-  const [details, setDetails] = useState('');
+  const [activityType, setActivityType] = useState<'CALL' | 'EMAIL' | 'MEETING'>('CALL');
+  const [details,      setDetails]      = useState('');
+  const [agentEmail,   setAgentEmail]   = useState('sales.agent@crm.com');
 
-  const API_URL = 'http://localhost:8080/api/v1/leads';
+  const API = 'http://localhost:8080/api/v1/leads';
+  const headers = { Authorization: `Bearer ${token}` };
 
-  // 1. Fetch All Leads
   const fetchLeads = async () => {
-    try {
-      const res = await axios.get(API_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setLeads(res.data);
-    } catch (err: any) { 
-      console.error("Error fetching leads", err);
-      setError("Leads load nahi ho payi! Server ya Token check karein.");
-    }
+    const res = await axios.get(API, { headers });
+    setLeads(res.data);
   };
 
-  // 2. Fetch Activities for a Specific Lead
-  const fetchActivities = async (leadId: number) => {
-    try {
-      const res = await axios.get(`${API_URL}/${leadId}/activities`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setActivities(res.data);
-    } catch (err: any) {
-      console.error("Error fetching activities", err);
-    }
-  };
-
-  // 3. Add New Lead
-  const handleAddLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await axios.post(API_URL, 
-        { name, email, phone, status: "NEW" }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      fetchLeads(); 
-      setName(''); setEmail(''); setPhone('');
-    } catch (err: any) { 
-      setError(err.response?.data?.message || "Lead add nahi hui!");
-    }
-  };
-
-  // 4. Log New Activity
-  const handleLogActivity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-
-    try {
-      await axios.post(`${API_URL}/${selectedLead.id}/activities`, 
-        { 
-          activityType, 
-          details, 
-          recordedByEmail: "sales.agent@crm.com" 
-        }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setDetails(''); 
-      fetchActivities(selectedLead.id); 
-    } catch (err: any) {
-      console.error("Activity log nahi hui", err);
-      setError("Activity save nahi ho payi. Auth status check karein (403 Forbidden).");
-    }
-  };
-
-  const handleSelectLead = (lead: any) => {
-    setSelectedLead(lead);
-    fetchActivities(lead.id); 
+  const fetchActivities = async (id: number) => {
+    const res = await axios.get(`${API}/${id}/activities`, { headers });
+    setActivities(res.data);
   };
 
   useEffect(() => { fetchLeads(); }, []);
 
+  const handleSelectLead = (lead: Lead) => {
+    setSelectedLead(lead);
+    fetchActivities(lead.id);
+  };
+
+  const handleAddLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
+    setName(''); setEmail(''); setPhone('');
+    fetchLeads();
+  };
+
+  const handleLogActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    await axios.post(
+      `${API}/${selectedLead.id}/activities`,
+      { activityType, details, recordedByEmail: agentEmail },
+      { headers }
+    );
+    setDetails('');
+    fetchActivities(selectedLead.id);
+  };
+
+  /* ── stat cards data ── */
+  const stats = [
+    { label: 'Total Leads',       value: leads.length,                                         sub: '' },
+    { label: 'New / Uncontacted', value: leads.filter((l) => l.status === 'NEW').length,       sub: 'uncontacted' },
+    { label: 'Qualified',         value: leads.filter((l) => l.status === 'QUALIFIED').length, sub: 'ready to close' },
+    { label: 'Activities',        value: activities.length,                                    sub: 'interactions total' },
+  ];
+
+  /* ══════════════════════════════════════════════════ RENDER ══ */
   return (
-    <div className="text-white w-full max-w-7xl mx-auto p-4 md:p-6 min-h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-bold text-blue-400 drop-shadow">📊 CRM Dashboard</h2>
-        <button onClick={onLogout} className="bg-red-600 px-5 py-2 rounded-xl hover:bg-red-500 transition font-medium">
-          Logout
+    <div className="h-full text-white flex flex-col">
+
+      {/* ── HEADER ── */}
+      <div className="flex items-center justify-between mb-5 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-violet-600 flex items-center justify-center text-lg font-bold shadow-[0_0_20px_rgba(168,85,247,0.55)]">
+            ⚡
+          </div>
+          <div>
+            <h1 className="text-[28px] font-bold tracking-tight leading-none bg-gradient-to-r from-violet-300 to-cyan-300 bg-clip-text text-transparent">
+              leadflux
+            </h1>
+            <p className="text-white/40 text-xs mt-0.5">Manage leads &amp; activities</p>
+          </div>
+        </div>
+
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-500/20 border border-red-500/25 text-red-300 hover:bg-red-500/30 transition-all text-sm font-semibold"
+        >
+          ⊕ Logout
         </button>
       </div>
-      
-      {error && <p className="text-red-400 mb-6 bg-red-400/10 p-3 rounded-lg border border-red-500/20">{error}</p>}
 
-      {/* Grid Layout Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start w-full">
-        
-        {/* ================= LEFT SIDE: LEADS MODULE ================= */}
-        <div className="space-y-6 w-full">
-          <div>
-            <h3 className="text-lg font-semibold mb-3 text-slate-300">Add New Lead</h3>
-            <form onSubmit={handleAddLead} className="space-y-4 bg-black/30 backdrop-blur-md p-6 rounded-2xl border border-white/10 shadow-xl">
-              <input className="w-full p-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-blue-500 text-white text-sm" 
-                     placeholder="Lead Name" value={name} onChange={(e) => setName(e.target.value)} required />
-              <input className="w-full p-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-blue-500 text-white text-sm" 
-                     placeholder="Email Address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <input className="w-full p-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-blue-500 text-white text-sm" 
-                     placeholder="Phone Number" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-              <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold hover:bg-blue-500 transition shadow-lg shadow-blue-600/20 text-sm">
-                Add Lead
+      {/* ── STATS ── */}
+      <div className="grid grid-cols-4 gap-3 mb-4 flex-shrink-0">
+        {stats.map((s, i) => (
+          <div key={i} className={`${GLASS_DARK} rounded-2xl p-4 shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px]">{s.label}</p>
+            <h2 className="text-5xl font-bold mt-1 leading-none">{s.value}</h2>
+            {s.sub && <p className="text-[10px] text-white/25 mt-2">{s.sub}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* ── MAIN GRID ── */}
+      <div className="grid lg:grid-cols-[300px_1fr] gap-4 flex-1 min-h-0">
+
+        {/* ════ LEFT PANEL ════ */}
+        <div className={`${GLASS_PANEL} rounded-2xl flex flex-col overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
+
+          {/* Add Lead */}
+          <div className="p-4 border-b border-white/[0.07] flex-shrink-0">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px] mb-3">Add Lead</p>
+            <form onSubmit={handleAddLead} className="space-y-2.5">
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
+              />
+              <input
+                type="text"
+                placeholder="Phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
+              />
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-500 to-violet-500 shadow-[0_0_22px_rgba(168,85,247,0.4)] hover:scale-[1.02] active:scale-[0.99] transition-all"
+              >
+                + Add Lead
               </button>
             </form>
           </div>
 
-          <div>
-            <h3 className="text-lg font-semibold mb-3 text-slate-300">Leads List (Click to view history)</h3>
-            <ul className="space-y-3">
-              {leads.map((lead: any) => (
-                <li 
-                  key={lead.id} 
+          {/* Leads list */}
+          <div className="flex-1 overflow-y-auto p-3">
+            <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3 px-1">Leads</p>
+            <div className="space-y-2">
+              {leads.map((lead, idx) => (
+                <div
+                  key={lead.id}
                   onClick={() => handleSelectLead(lead)}
-                  className={`p-4 rounded-xl border cursor-pointer transition flex justify-between items-center shadow-md ${
-                    selectedLead?.id === lead.id 
-                      ? 'bg-blue-600/30 border-blue-500 shadow-blue-500/10' 
-                      : 'bg-black/30 backdrop-blur-sm border-white/10 hover:border-slate-500'
-                  }`}
+                  className={`
+                    flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all
+                    ${selectedLead?.id === lead.id
+                      ? 'bg-violet-500/20 border border-violet-500/35'
+                      : 'bg-white/[0.05] border border-white/[0.07] hover:bg-white/[0.09]'}
+                  `}
                 >
-                  <div className="min-w-0 pr-2">
-                    <strong className="block text-white truncate text-sm">{lead.name}</strong>
-                    <span className="text-slate-400 text-xs truncate block">{lead.email}</span>
+                  {/* avatar */}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${AVATAR_STYLES[idx % AVATAR_STYLES.length]}`}>
+                    {getInitials(lead.name)}
                   </div>
-                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded-md uppercase font-bold tracking-wider shrink-0">
-                    {lead.status || "NEW"}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{lead.name}</p>
+                    <p className="text-xs text-white/40 truncate">{lead.email}</p>
+                  </div>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[lead.status]}`}>
+                    {lead.status}
                   </span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
 
-        {/* ================= RIGHT SIDE: FIXED & IMPROVED ACTIVITIES TIMELINE ================= */}
-        <div className="bg-black/30 backdrop-blur-md p-6 rounded-2xl border border-white/10 h-fit w-full shadow-xl">
-          {selectedLead ? (
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-xl font-bold text-blue-400 mb-1 break-words">Timeline for {selectedLead.name}</h3>
-                <p className="text-xs text-slate-400 break-all">Email: {selectedLead.email}</p>
+        {/* ════ RIGHT PANEL ════ */}
+        <div className={`${GLASS_PANEL} rounded-2xl flex flex-col overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
+
+          {!selectedLead ? (
+
+            /* Empty state */
+            <div className="h-full flex flex-col items-center justify-center gap-3">
+              <div className="text-6xl">✨</div>
+              <h2 className="text-xl font-bold text-white/70">Select a Lead</h2>
+              <p className="text-sm text-white/35">Click any lead to view details</p>
+            </div>
+
+          ) : (
+            <>
+              {/* Detail header */}
+              <div className="p-5 border-b border-white/[0.07] flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ${AVATAR_STYLES[leads.findIndex(l => l.id === selectedLead.id) % AVATAR_STYLES.length]}`}>
+                      {getInitials(selectedLead.name)}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">{selectedLead.name}</h2>
+                      <p className="text-sm text-white/40 mt-0.5">{selectedLead.email}</p>
+                    </div>
+                  </div>
+                  <div className={`px-4 py-1.5 rounded-full text-sm font-bold bg-gradient-to-r ${STATUS_GRADIENT[selectedLead.status]}`}>
+                    {selectedLead.status}
+                  </div>
+                </div>
               </div>
 
-              {/* Form: Log New Activity */}
-              <form onSubmit={handleLogActivity} className="space-y-4 bg-black/40 p-4 rounded-xl border border-white/5">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-slate-400 font-medium">Activity Type</label>
-                  <select 
-                    value={activityType} 
-                    onChange={(e) => setActivityType(e.target.value)}
-                    className="w-full p-3 bg-black/60 border border-white/10 rounded-xl outline-none text-sm text-slate-200 focus:border-blue-500 cursor-pointer"
-                  >
-                    <option value="CALL">📞 Call</option>
-                    <option value="EMAIL">📧 Email</option>
-                    <option value="MEETING">🤝 Meeting</option>
-                  </select>
-                </div>
-                
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-slate-400 font-medium">Activity Details</label>
-                  <textarea 
-                    className="w-full p-3 bg-black/60 border border-white/10 rounded-xl outline-none focus:border-blue-500 text-white text-sm resize-none" 
-                    placeholder="Kya baat-cheet hui? Details yahan likhein..." 
-                    value={details} 
-                    onChange={(e) => setDetails(e.target.value)} 
+              {/* Log Activity */}
+              <div className="p-5 border-b border-white/[0.07] flex-shrink-0">
+                <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3">Log Activity</p>
+                <form onSubmit={handleLogActivity} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <select
+                      value={activityType}
+                      onChange={(e) => setActivityType(e.target.value as any)}
+                      className={`${GLASS_INPUT} px-4 py-3 text-sm`}
+                    >
+                      <option value="CALL">CALL</option>
+                      <option value="EMAIL">EMAIL</option>
+                      <option value="MEETING">MEETING</option>
+                    </select>
+                    <input
+                      type="email"
+                      value={agentEmail}
+                      onChange={(e) => setAgentEmail(e.target.value)}
+                      className={`${GLASS_INPUT} px-4 py-3 text-sm`}
+                    />
+                  </div>
+                  <textarea
                     rows={3}
-                    required 
+                    value={details}
+                    onChange={(e) => setDetails(e.target.value)}
+                    placeholder="Activity details..."
+                    className={`${GLASS_INPUT} w-full px-4 py-3 text-sm resize-none`}
                   />
-                </div>
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-500 to-violet-500 shadow-[0_0_22px_rgba(168,85,247,0.4)] hover:scale-[1.02] active:scale-[0.99] transition-all"
+                  >
+                    Save Activity
+                  </button>
+                </form>
+              </div>
 
-                <button type="submit" className="w-full bg-emerald-600 py-3 rounded-xl font-bold text-sm hover:bg-emerald-500 transition text-white shadow-lg shadow-emerald-900/20">
-                  Log Activity
-                </button>
-              </form>
-
-              {/* List: Activity History */}
-              <div className="pt-2">
-                <h4 className="font-semibold text-xs text-slate-400 mb-3 uppercase tracking-wider">Past Activities</h4>
-                <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                  {activities.length === 0 ? (
-                    <p className="text-slate-500 text-xs italic bg-black/20 p-4 rounded-xl border border-white/5 text-center">
-                      No activities recorded yet for this lead.
-                    </p>
-                  ) : (
-                    activities.map((act: any) => (
-                      <div key={act.id} className="p-3 bg-black/50 rounded-xl border border-white/5 space-y-2">
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 shrink-0">
-                            {act.activityType}
+              {/* Activity timeline */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3">🕐 Activity Timeline</p>
+                {activities.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-28 gap-1">
+                    <p className="text-sm text-white/35">No activities yet</p>
+                    <p className="text-xs text-white/20">Log your first interaction above</p>
+                  </div>
+                ) : (
+                  activities
+                    .slice()
+                    .reverse()
+                    .map((a) => (
+                      <div
+                        key={a.id}
+                        className="p-4 rounded-xl bg-white/[0.05] border border-white/[0.07]"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/25">
+                            {a.activityType}
                           </span>
-                          <span className="text-[10px] text-slate-500 truncate">{act.recordedByEmail}</span>
+                          <span className="text-xs text-white/35">{a.recordedByEmail}</span>
                         </div>
-                        <p className="text-sm text-slate-300 bg-black/20 p-2 rounded-lg break-words">{act.details}</p>
+                        <p className="text-sm text-white/75">{a.details}</p>
                       </div>
                     ))
-                  )}
-                </div>
+                )}
               </div>
-            </div>
-          ) : (
-            <div className="h-[350px] flex flex-col justify-center items-center text-center p-4">
-              <span className="text-4xl mb-3 animate-pulse">👈</span>
-              <h3 className="text-lg font-medium text-slate-300">No Lead Selected</h3>
-              <p className="text-xs text-slate-500 max-w-[220px] mt-1">
-                Kisi bhi lead par click karke uski puri activity history aur follow-ups check karein.
-              </p>
-            </div>
+            </>
           )}
         </div>
-
       </div>
     </div>
   );
