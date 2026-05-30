@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { User, Mail, Phone, FileText } from 'lucide-react';
 
 interface Lead {
   id: number;
@@ -23,308 +24,381 @@ interface Props {
   onLogout: () => void;
 }
 
-/* Status gradient pills */
 const STATUS_GRADIENT: Record<string, string> = {
-  NEW:       'from-cyan-500 to-blue-500',
-  CONTACTED: 'from-yellow-500 to-orange-500',
-  QUALIFIED: 'from-green-500 to-emerald-500',
-  LOST:      'from-red-500 to-pink-500',
+  NEW:       'linear-gradient(135deg,#06b6d4,#3b82f6)',
+  CONTACTED: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+  QUALIFIED: 'linear-gradient(135deg,#10b981,#059669)',
+  LOST:      'linear-gradient(135deg,#ef4444,#ec4899)',
 };
 
-/* Status outline badges (lead list) */
-const STATUS_BADGE: Record<string, string> = {
-  NEW:       'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30',
-  CONTACTED: 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30',
-  QUALIFIED: 'bg-green-500/15 text-green-300 border border-green-500/30',
-  LOST:      'bg-red-500/15 text-red-300 border border-red-500/30',
+const STATUS_BADGE_STYLE: Record<string, React.CSSProperties> = {
+  NEW:       { background:'rgba(6,182,212,0.15)',  color:'#67e8f9', border:'1px solid rgba(6,182,212,0.3)'  },
+  CONTACTED: { background:'rgba(245,158,11,0.15)', color:'#fcd34d', border:'1px solid rgba(245,158,11,0.3)' },
+  QUALIFIED: { background:'rgba(16,185,129,0.15)', color:'#6ee7b7', border:'1px solid rgba(16,185,129,0.3)' },
+  LOST:      { background:'rgba(239,68,68,0.15)',  color:'#fca5a5', border:'1px solid rgba(239,68,68,0.3)'  },
 };
 
-/* Avatar colour pairs */
-const AVATAR_STYLES = [
-  'bg-violet-500/25 text-violet-300',
-  'bg-cyan-500/25   text-cyan-300',
-  'bg-fuchsia-500/25 text-fuchsia-300',
-  'bg-emerald-500/25 text-emerald-300',
-  'bg-amber-500/25   text-amber-300',
+const AVATAR_COLORS = [
+  { bg:'rgba(139,92,246,0.28)',  color:'#c4b5fd' },
+  { bg:'rgba(6,182,212,0.28)',   color:'#67e8f9' },
+  { bg:'rgba(217,70,239,0.28)',  color:'#f0abfc' },
+  { bg:'rgba(16,185,129,0.28)',  color:'#6ee7b7' },
+  { bg:'rgba(245,158,11,0.28)',  color:'#fcd34d' },
 ];
 
 function getInitials(name: string) {
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-/* Reusable glass-panel class strings */
-const GLASS_DARK  = 'bg-black/45 backdrop-blur-[36px] border border-white/10';
-const GLASS_PANEL = 'bg-black/40 backdrop-blur-[36px] border border-white/10';
-const GLASS_INPUT = 'bg-white/[0.06] border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-violet-500/60 transition-colors rounded-2xl';
-
 const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
-
   const [leads, setLeads]               = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activities, setActivities]     = useState<Activity[]>([]);
+  const [name,  setName]                = useState('');
+  const [email, setEmail]               = useState('');
+  const [phone, setPhone]               = useState('');
+  const [activityType, setActivityType] = useState<'CALL'|'EMAIL'|'MEETING'>('CALL');
+  const [details, setDetails]           = useState('');
+  const [agentEmail, setAgentEmail]     = useState('sales.agent@crm.com');
 
-  const [name,  setName]  = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-
-  const [activityType, setActivityType] = useState<'CALL' | 'EMAIL' | 'MEETING'>('CALL');
-  const [details,      setDetails]      = useState('');
-  const [agentEmail,   setAgentEmail]   = useState('sales.agent@crm.com');
-
-  const API = 'http://localhost:8080/api/v1/leads';
+  const API     = 'http://localhost:8080/api/v1/leads';
   const headers = { Authorization: `Bearer ${token}` };
 
-  const fetchLeads = async () => {
-    const res = await axios.get(API, { headers });
-    setLeads(res.data);
-  };
-
-  const fetchActivities = async (id: number) => {
-    const res = await axios.get(`${API}/${id}/activities`, { headers });
-    setActivities(res.data);
-  };
+  const fetchLeads      = async () => { const r = await axios.get(API, { headers }); setLeads(r.data); };
+  const fetchActivities = async (id: number) => { const r = await axios.get(`${API}/${id}/activities`, { headers }); setActivities(r.data); };
 
   useEffect(() => { fetchLeads(); }, []);
 
-  const handleSelectLead = (lead: Lead) => {
-    setSelectedLead(lead);
-    fetchActivities(lead.id);
-  };
-
-  const handleAddLead = async (e: React.FormEvent) => {
+  const handleSelectLead  = (lead: Lead) => { setSelectedLead(lead); fetchActivities(lead.id); };
+  const handleAddLead     = async (e: React.FormEvent) => {
     e.preventDefault();
     await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
     setName(''); setEmail(''); setPhone('');
     fetchLeads();
   };
-
   const handleLogActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
-    await axios.post(
-      `${API}/${selectedLead.id}/activities`,
-      { activityType, details, recordedByEmail: agentEmail },
-      { headers }
-    );
+    await axios.post(`${API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
     setDetails('');
     fetchActivities(selectedLead.id);
   };
 
-  /* ── stat cards data ── */
   const stats = [
-    { label: 'Total Leads',       value: leads.length,                                         sub: '' },
-    { label: 'New / Uncontacted', value: leads.filter((l) => l.status === 'NEW').length,       sub: 'uncontacted' },
-    { label: 'Qualified',         value: leads.filter((l) => l.status === 'QUALIFIED').length, sub: 'ready to close' },
-    { label: 'Activities',        value: activities.length,                                    sub: 'interactions total' },
+    { label: 'Total Leads',       value: leads.length },
+    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,       sub: 'uncontacted'       },
+    { label: 'Qualified',         value: leads.filter(l => l.status === 'QUALIFIED').length, sub: 'ready to close'    },
+    { label: 'Activities',        value: activities.length,                                  sub: 'interactions total' },
   ];
 
-  /* ══════════════════════════════════════════════════ RENDER ══ */
+  /* ── shared inline styles ── */
+  const panelStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    backdropFilter: 'blur(40px) saturate(1.5)',
+    WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
+    borderRadius: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  };
+
+  const statCardStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    backdropFilter: 'blur(36px)',
+    WebkitBackdropFilter: 'blur(36px)',
+    borderRadius: 16,
+    padding: '12px 16px',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px 10px 36px',
+    borderRadius: 14,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    color: '#fff',
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: 'Poppins, sans-serif',
+    transition: 'border-color 0.2s',
+  };
+
+  const iconWrapStyle: React.CSSProperties = {
+    position: 'relative',
+    marginBottom: 8,
+  };
+
+  const iconStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: 11,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    opacity: 0.38,
+    color: '#fff',
+    pointerEvents: 'none',
+  };
+
+  const sectionLabel: React.CSSProperties = {
+    fontSize: 9,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '1.3px',
+    color: 'rgba(255,255,255,0.32)',
+    marginBottom: 10,
+  };
+
+  const addBtnStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '11px',
+    borderRadius: 14,
+    background: 'linear-gradient(135deg,#d946ef,#8b5cf6,#6d28d9)',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 700,
+    border: 'none',
+    cursor: 'pointer',
+    boxShadow: '0 0 22px rgba(168,85,247,0.50)',
+    fontFamily: 'Poppins, sans-serif',
+    transition: 'transform 0.15s, box-shadow 0.15s',
+  };
+
+  const saveBtnStyle: React.CSSProperties = {
+    ...addBtnStyle,
+    marginTop: 4,
+    boxShadow: '0 0 18px rgba(168,85,247,0.40)',
+  };
+
   return (
-    <div className="h-full text-white flex flex-col">
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', color:'#fff', fontFamily:'Poppins, sans-serif' }}>
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between mb-5 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-violet-600 flex items-center justify-center text-lg font-bold shadow-[0_0_20px_rgba(168,85,247,0.55)]">
-            ⚡
-          </div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{
+            width:40, height:40, borderRadius:14,
+            background:'linear-gradient(135deg,#d946ef,#7c3aed)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:20, boxShadow:'0 0 22px rgba(168,85,247,0.55)',
+          }}>⚡</div>
           <div>
-            <h1 className="text-[28px] font-bold tracking-tight leading-none bg-gradient-to-r from-violet-300 to-cyan-300 bg-clip-text text-transparent">
-              leadflux
-            </h1>
-            <p className="text-white/40 text-xs mt-0.5">Manage leads &amp; activities</p>
+            <div style={{
+              fontSize:26, fontWeight:800, lineHeight:1,
+              background:'linear-gradient(to right,#c4b5fd,#67e8f9)',
+              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+            }}>leadflux</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.35)', marginTop:2 }}>Manage leads &amp; activities</div>
           </div>
         </div>
-
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-500/20 border border-red-500/25 text-red-300 hover:bg-red-500/30 transition-all text-sm font-semibold"
-        >
-          ⊕ Logout
-        </button>
+        <button onClick={onLogout} style={{
+          padding:'9px 18px', borderRadius:14,
+          background:'rgba(239,68,68,0.18)', border:'1px solid rgba(239,68,68,0.28)',
+          color:'#fca5a5', fontSize:12, fontWeight:600, cursor:'pointer',
+          fontFamily:'Poppins, sans-serif',
+        }}>⊕ Logout</button>
       </div>
 
       {/* ── STATS ── */}
-      <div className="grid grid-cols-4 gap-3 mb-4 flex-shrink-0">
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:12, flexShrink:0 }}>
         {stats.map((s, i) => (
-          <div key={i} className={`${GLASS_DARK} rounded-2xl p-4 shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px]">{s.label}</p>
-            <h2 className="text-5xl font-bold mt-1 leading-none">{s.value}</h2>
-            {s.sub && <p className="text-[10px] text-white/25 mt-2">{s.sub}</p>}
+          <div key={i} style={statCardStyle}>
+            <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'1.3px', color:'rgba(255,255,255,0.32)' }}>{s.label}</div>
+            <div style={{ fontSize:42, fontWeight:800, lineHeight:1.05, marginTop:2 }}>{s.value}</div>
+            {s.sub && <div style={{ fontSize:9, color:'rgba(255,255,255,0.20)', marginTop:4 }}>{s.sub}</div>}
           </div>
         ))}
       </div>
 
       {/* ── MAIN GRID ── */}
-      <div className="grid lg:grid-cols-[300px_1fr] gap-4 flex-1 min-h-0">
+      <div style={{ display:'grid', gridTemplateColumns:'260px 1fr', gap:10, flex:1, minHeight:0 }}>
 
-        {/* ════ LEFT PANEL ════ */}
-        <div className={`${GLASS_PANEL} rounded-2xl flex flex-col overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
+        {/* ── LEFT PANEL ── */}
+        <div style={panelStyle}>
 
           {/* Add Lead */}
-          <div className="p-4 border-b border-white/[0.07] flex-shrink-0">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px] mb-3">Add Lead</p>
-            <form onSubmit={handleAddLead} className="space-y-2.5">
-              <input
-                type="text"
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
-              />
-              <input
-                type="text"
-                placeholder="Phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={`${GLASS_INPUT} w-full px-4 py-3 text-sm`}
-              />
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-500 to-violet-500 shadow-[0_0_22px_rgba(168,85,247,0.4)] hover:scale-[1.02] active:scale-[0.99] transition-all"
-              >
-                + Add Lead
-              </button>
+          <div style={{ padding:'14px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+            <div style={sectionLabel}>Add Lead</div>
+            <form onSubmit={handleAddLead} style={{ display:'flex', flexDirection:'column' }}>
+
+              {/* Name input with icon */}
+              <div style={iconWrapStyle}>
+                <User size={15} style={iconStyle} />
+                <input
+                  type="text" placeholder="Full Name" value={name}
+                  onChange={e => setName(e.target.value)} required
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Email input with icon */}
+              <div style={iconWrapStyle}>
+                <Mail size={15} style={iconStyle} />
+                <input
+                  type="email" placeholder="Email" value={email}
+                  onChange={e => setEmail(e.target.value)} required
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Phone input with icon */}
+              <div style={{ ...iconWrapStyle, marginBottom:10 }}>
+                <Phone size={15} style={iconStyle} />
+                <input
+                  type="text" placeholder="Phone" value={phone}
+                  onChange={e => setPhone(e.target.value)} required
+                  style={inputStyle}
+                />
+              </div>
+
+              <button type="submit" style={addBtnStyle}>+ Add Lead</button>
             </form>
           </div>
 
           {/* Leads list */}
-          <div className="flex-1 overflow-y-auto p-3">
-            <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3 px-1">Leads</p>
-            <div className="space-y-2">
-              {leads.map((lead, idx) => (
-                <div
-                  key={lead.id}
-                  onClick={() => handleSelectLead(lead)}
-                  className={`
-                    flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all
-                    ${selectedLead?.id === lead.id
-                      ? 'bg-violet-500/20 border border-violet-500/35'
-                      : 'bg-white/[0.05] border border-white/[0.07] hover:bg-white/[0.09]'}
-                  `}
-                >
-                  {/* avatar */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${AVATAR_STYLES[idx % AVATAR_STYLES.length]}`}>
-                    {getInitials(lead.name)}
+          <div style={{ flex:1, overflowY:'auto', padding:12 }}>
+            <div style={sectionLabel}>Leads</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {leads.map((lead, idx) => {
+                const av = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                const active = selectedLead?.id === lead.id;
+                return (
+                  <div
+                    key={lead.id}
+                    onClick={() => handleSelectLead(lead)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:10,
+                      padding:'9px 11px', borderRadius:14, cursor:'pointer',
+                      transition:'all 0.2s',
+                      background: active ? 'rgba(124,58,237,0.22)' : 'rgba(255,255,255,0.045)',
+                      border: active ? '1px solid rgba(124,58,237,0.38)' : '1px solid rgba(255,255,255,0.07)',
+                    }}
+                  >
+                    <div style={{
+                      width:34, height:34, borderRadius:'50%', flexShrink:0,
+                      background:av.bg, color:av.color,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:11, fontWeight:700,
+                    }}>{getInitials(lead.name)}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.name}</div>
+                      <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.email}</div>
+                    </div>
+                    <span style={{
+                      fontSize:8, fontWeight:700, padding:'2px 8px', borderRadius:999, flexShrink:0,
+                      ...STATUS_BADGE_STYLE[lead.status],
+                    }}>{lead.status}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{lead.name}</p>
-                    <p className="text-xs text-white/40 truncate">{lead.email}</p>
-                  </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[lead.status]}`}>
-                    {lead.status}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* ════ RIGHT PANEL ════ */}
-        <div className={`${GLASS_PANEL} rounded-2xl flex flex-col overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.4)]`}>
+        {/* ── RIGHT PANEL ── */}
+        <div style={{ ...panelStyle, position:'relative', overflow:'hidden' }}>
+
+          {/* Person photo inside right panel — semi transparent */}
+          <img
+            src="/1703602486048.jpg"
+            alt=""
+            style={{
+              position:'absolute', top:0, right:0, height:'100%', width:'55%',
+              objectFit:'cover', objectPosition:'top center',
+              opacity:0.18,
+              maskImage:'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)',
+              WebkitMaskImage:'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)',
+              pointerEvents:'none', zIndex:0,
+            }}
+          />
 
           {!selectedLead ? (
-
-            /* Empty state */
-            <div className="h-full flex flex-col items-center justify-center gap-3">
-              <div className="text-6xl">✨</div>
-              <h2 className="text-xl font-bold text-white/70">Select a Lead</h2>
-              <p className="text-sm text-white/35">Click any lead to view details</p>
+            <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, position:'relative', zIndex:1 }}>
+              <div style={{ fontSize:50, filter:'drop-shadow(0 0 18px rgba(168,85,247,0.4))' }}>✨</div>
+              <div style={{ fontSize:20, fontWeight:700, color:'rgba(255,255,255,0.65)' }}>Select a Lead</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.30)' }}>Click any lead to view details</div>
             </div>
-
           ) : (
-            <>
+            <div style={{ display:'flex', flexDirection:'column', height:'100%', position:'relative', zIndex:1 }}>
+
               {/* Detail header */}
-              <div className="p-5 border-b border-white/[0.07] flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ${AVATAR_STYLES[leads.findIndex(l => l.id === selectedLead.id) % AVATAR_STYLES.length]}`}>
-                      {getInitials(selectedLead.name)}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold">{selectedLead.name}</h2>
-                      <p className="text-sm text-white/40 mt-0.5">{selectedLead.email}</p>
-                    </div>
-                  </div>
-                  <div className={`px-4 py-1.5 rounded-full text-sm font-bold bg-gradient-to-r ${STATUS_GRADIENT[selectedLead.status]}`}>
-                    {selectedLead.status}
+              <div style={{ padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                  {(() => {
+                    const idx = leads.findIndex(l => l.id === selectedLead.id);
+                    const av  = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                    return (
+                      <div style={{ width:48, height:48, borderRadius:'50%', background:av.bg, color:av.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:700 }}>
+                        {getInitials(selectedLead.name)}
+                      </div>
+                    );
+                  })()}
+                  <div>
+                    <div style={{ fontSize:20, fontWeight:800, color:'#fff' }}>{selectedLead.name}</div>
+                    <div style={{ fontSize:12, color:'rgba(255,255,255,0.38)', marginTop:2 }}>{selectedLead.email}</div>
                   </div>
                 </div>
+                <div style={{
+                  padding:'6px 16px', borderRadius:999,
+                  background:STATUS_GRADIENT[selectedLead.status],
+                  fontSize:12, fontWeight:700, color:'#fff',
+                }}>{selectedLead.status}</div>
               </div>
 
               {/* Log Activity */}
-              <div className="p-5 border-b border-white/[0.07] flex-shrink-0">
-                <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3">Log Activity</p>
-                <form onSubmit={handleLogActivity} className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <select
-                      value={activityType}
-                      onChange={(e) => setActivityType(e.target.value as any)}
-                      className={`${GLASS_INPUT} px-4 py-3 text-sm`}
-                    >
+              <div style={{ padding:'14px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+                <div style={sectionLabel}>Log Activity</div>
+                <form onSubmit={handleLogActivity} style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <select value={activityType} onChange={e => setActivityType(e.target.value as any)}
+                      style={{ ...inputStyle, paddingLeft:12, cursor:'pointer' }}>
                       <option value="CALL">CALL</option>
                       <option value="EMAIL">EMAIL</option>
                       <option value="MEETING">MEETING</option>
                     </select>
-                    <input
-                      type="email"
-                      value={agentEmail}
-                      onChange={(e) => setAgentEmail(e.target.value)}
-                      className={`${GLASS_INPUT} px-4 py-3 text-sm`}
-                    />
+                    <div style={iconWrapStyle}>
+                      <Mail size={15} style={{ ...iconStyle, top:'50%' }} />
+                      <input type="email" value={agentEmail} onChange={e => setAgentEmail(e.target.value)}
+                        style={{ ...inputStyle, marginBottom:0 }} />
+                    </div>
                   </div>
-                  <textarea
-                    rows={3}
-                    value={details}
-                    onChange={(e) => setDetails(e.target.value)}
-                    placeholder="Activity details..."
-                    className={`${GLASS_INPUT} w-full px-4 py-3 text-sm resize-none`}
-                  />
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-500 to-violet-500 shadow-[0_0_22px_rgba(168,85,247,0.4)] hover:scale-[1.02] active:scale-[0.99] transition-all"
-                  >
-                    Save Activity
-                  </button>
+                  <div style={{ position:'relative' }}>
+                    <FileText size={15} style={{ ...iconStyle, top:14, transform:'none' }} />
+                    <textarea rows={3} value={details} onChange={e => setDetails(e.target.value)}
+                      placeholder="Activity details..."
+                      style={{ ...inputStyle, paddingTop:10, paddingBottom:10, resize:'none', height:'auto' }} />
+                  </div>
+                  <button type="submit" style={saveBtnStyle}>Save Activity</button>
                 </form>
               </div>
 
-              {/* Activity timeline */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                <p className="text-[10px] font-bold text-white/35 uppercase tracking-[1px] mb-3">🕐 Activity Timeline</p>
+              {/* Timeline */}
+              <div style={{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
+                <div style={sectionLabel}>🕐 Activity Timeline</div>
                 {activities.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-28 gap-1">
-                    <p className="text-sm text-white/35">No activities yet</p>
-                    <p className="text-xs text-white/20">Log your first interaction above</p>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:80, gap:4 }}>
+                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.30)' }}>No activities yet</div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,0.18)' }}>Log your first interaction above</div>
                   </div>
                 ) : (
-                  activities
-                    .slice()
-                    .reverse()
-                    .map((a) => (
-                      <div
-                        key={a.id}
-                        className="p-4 rounded-xl bg-white/[0.05] border border-white/[0.07]"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/25">
-                            {a.activityType}
-                          </span>
-                          <span className="text-xs text-white/35">{a.recordedByEmail}</span>
-                        </div>
-                        <p className="text-sm text-white/75">{a.details}</p>
+                  [...activities].reverse().map(a => (
+                    <div key={a.id} style={{
+                      padding:'12px 14px', borderRadius:14, marginBottom:8,
+                      background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.07)',
+                    }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
+                        <span style={{
+                          fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius:999,
+                          background:'rgba(124,58,237,0.2)', color:'#c4b5fd', border:'1px solid rgba(124,58,237,0.28)',
+                        }}>{a.activityType}</span>
+                        <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)' }}>{a.recordedByEmail}</span>
                       </div>
-                    ))
+                      <div style={{ fontSize:12, color:'rgba(255,255,255,0.72)', lineHeight:1.5 }}>{a.details}</div>
+                    </div>
+                  ))
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
