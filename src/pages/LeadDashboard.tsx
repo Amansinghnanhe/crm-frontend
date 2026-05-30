@@ -221,7 +221,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
             <div style={sectionLabel}>Add Lead</div>
             <form onSubmit={handleAddLead} style={{ display:'flex', flexDirection:'column' }}>
 
-              {/* Name input with icon */}
               <div style={iconWrapStyle}>
                 <User size={15} style={iconStyle} />
                 <input
@@ -231,7 +230,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 />
               </div>
 
-              {/* Email input with icon */}
               <div style={iconWrapStyle}>
                 <Mail size={15} style={iconStyle} />
                 <input
@@ -241,7 +239,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 />
               </div>
 
-              {/* Phone input with icon */}
               <div style={{ ...iconWrapStyle, marginBottom:10 }}>
                 <Phone size={15} style={iconStyle} />
                 <input
@@ -298,16 +295,16 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
         {/* ── RIGHT PANEL ── */}
         <div style={{ ...panelStyle, position:'relative', overflow:'hidden' }}>
 
-          {/* Person photo inside right panel — semi transparent */}
+          {/* ✅ CHANGE 1: opacity 0.18 → 0.55 | CHANGE 2: mask updated | CHANGE 3: width 55% → 60% */}
           <img
             src="/1703602486048.jpg"
             alt=""
             style={{
-              position:'absolute', top:0, right:0, height:'100%', width:'55%',
+              position:'absolute', top:0, right:0, height:'100%', width:'60%',
               objectFit:'cover', objectPosition:'top center',
-              opacity:0.18,
-              maskImage:'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)',
-              WebkitMaskImage:'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)',
+              opacity:0.55,
+              maskImage:'linear-gradient(to left, black 0%, black 40%, transparent 100%)',
+              WebkitMaskImage:'linear-gradient(to left, black 0%, black 40%, transparent 100%)',
               pointerEvents:'none', zIndex:0,
             }}
           />
