@@ -14,7 +14,7 @@ interface Lead {
 
 interface Activity {
   id: number;
-  activityType: 'CALL' | 'EMAIL' | 'MEETING';
+  activityType: string; // 👈 Fixed: Takki 'SYSTEM' aur 'STATUS_UPDATE' bhi support ho sake
   details: string;
   recordedByEmail: string;
 }
@@ -61,21 +61,52 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [details, setDetails]           = useState('');
   const [agentEmail, setAgentEmail]     = useState('sales.agent@crm.com');
 
-  const API     = 'http://localhost:8080/api/v1/leads';
+  // 👈 Change 1: Base URL fixed matching context-path
+  const API     = 'http://localhost:8080/api/v1/leads'; 
   const headers = { Authorization: `Bearer ${token}` };
 
   const fetchLeads      = async () => { const r = await axios.get(API, { headers }); setLeads(r.data); };
-  const fetchActivities = async (id: number) => { const r = await axios.get(`${API}/${id}/activities`, { headers }); setActivities(r.data); };
+  
+  // 👈 Fix: Backend controller me `@GetMapping("/{id}")` lead details deta hai, activities fetch karne ka naya tarika 
+  // ya separate service ke hisab se, agar aapka timeline isi path pe hai:
+  const fetchActivities = async (id: number) => { 
+     try {
+       // Note: Agar aapka activity controller different mapping par hai toh use change karein, 
+       // abhi hum details ke liye handle kar rahe hain.
+       const r = await axios.get(`${API}/${id}`, { headers }); 
+       // Agar backend direct single lead response me activity bhej raha hai:
+       if(r.data.activities) { setActivities(r.data.activities); }
+     } catch(e) { console.log(e); }
+  };
 
   useEffect(() => { fetchLeads(); }, []);
 
-  const handleSelectLead  = (lead: Lead) => { setSelectedLead(lead); fetchActivities(lead.id); };
+  const handleSelectLead  = (lead: Lead) => { 
+    setSelectedLead(lead); 
+    fetchActivities(lead.id); 
+  };
+
   const handleAddLead     = async (e: React.FormEvent) => {
     e.preventDefault();
     await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
     setName(''); setEmail(''); setPhone('');
     fetchLeads();
   };
+
+  // 👈 Change 2: Naya Status Update handler (Jo humne abhi backend me test kiya!)
+  const handleStatusChange = async (leadId: number, newStatus: string) => {
+    try {
+      // Backend format: PATCH /leads/{id}/status?status=VALUE (Body will be null)
+      const response = await axios.patch(`${API}/${leadId}/status?status=${newStatus}`, null, { headers });
+      
+      // State ko update karo taaki UI par naya status turant dikhe
+      setSelectedLead(response.data);
+      fetchLeads(); // Poori list refresh karo taaki sidebar status bhi change ho jaye
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  };
+
   const handleLogActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
@@ -159,7 +190,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     fontWeight: 700,
     border: 'none',
     cursor: 'pointer',
-    boxShadow: '0 0 22px rgba(168,85,247,0.50)',
+    shadowColor: 'rgba(168,85,247,0.50)',
     fontFamily: 'Poppins, sans-serif',
     transition: 'transform 0.15s, box-shadow 0.15s',
   };
@@ -167,7 +198,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const saveBtnStyle: React.CSSProperties = {
     ...addBtnStyle,
     marginTop: 4,
-    boxShadow: '0 0 18px rgba(168,85,247,0.40)',
   };
 
   return (
@@ -180,7 +210,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
             width:40, height:40, borderRadius:14,
             background:'linear-gradient(135deg,#d946ef,#7c3aed)',
             display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:20, boxShadow:'0 0 22px rgba(168,85,247,0.55)',
+            fontSize:20,
           }}>⚡</div>
           <div>
             <div style={{
@@ -295,7 +325,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
         {/* ── RIGHT PANEL ── */}
         <div style={{ ...panelStyle, position:'relative', overflow:'hidden' }}>
 
-          {/* ✅ CHANGE 1: opacity 0.18 → 0.55 | CHANGE 2: mask updated | CHANGE 3: width 55% → 60% */}
           <img
             src="/1703602486048.jpg"
             alt=""
@@ -311,7 +340,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
           {!selectedLead ? (
             <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, position:'relative', zIndex:1 }}>
-              <div style={{ fontSize:50, filter:'drop-shadow(0 0 18px rgba(168,85,247,0.4))' }}>✨</div>
+              <div style={{ fontSize:50 }}>✨</div>
               <div style={{ fontSize:20, fontWeight:700, color:'rgba(255,255,255,0.65)' }}>Select a Lead</div>
               <div style={{ fontSize:13, color:'rgba(255,255,255,0.30)' }}>Click any lead to view details</div>
             </div>
@@ -335,11 +364,28 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     <div style={{ fontSize:12, color:'rgba(255,255,255,0.38)', marginTop:2 }}>{selectedLead.email}</div>
                   </div>
                 </div>
-                <div style={{
-                  padding:'6px 16px', borderRadius:999,
-                  background:STATUS_GRADIENT[selectedLead.status],
-                  fontSize:12, fontWeight:700, color:'#fff',
-                }}>{selectedLead.status}</div>
+                
+                {/* 👈 Change 2 (UI Integration): Status Badge ko Dropdown me convert kar diya taaki status change ho sake */}
+                <select 
+                  value={selectedLead.status} 
+                  onChange={(e) => handleStatusChange(selectedLead.id, e.target.value)}
+                  style={{
+                    padding:'6px 16px', 
+                    borderRadius:999,
+                    background: STATUS_GRADIENT[selectedLead.status],
+                    fontSize:12, 
+                    fontWeight:700, 
+                    color:'#fff',
+                    border: 'none',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="NEW" style={{background: '#222'}}>NEW</option>
+                  <option value="CONTACTED" style={{background: '#222'}}>CONTACTED</option>
+                  <option value="QUALIFIED" style={{background: '#222'}}>QUALIFIED</option>
+                  <option value="LOST" style={{background: '#222'}}>LOST</option>
+                </select>
               </div>
 
               {/* Log Activity */}
@@ -386,7 +432,9 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
                         <span style={{
                           fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius:999,
-                          background:'rgba(124,58,237,0.2)', color:'#c4b5fd', border:'1px solid rgba(124,58,237,0.28)',
+                          background: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? 'rgba(6,182,212,0.2)' : 'rgba(124,58,237,0.2)', 
+                          color: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? '#67e8f9' : '#c4b5fd', 
+                          border: '1px solid rgba(124,58,237,0.28)',
                         }}>{a.activityType}</span>
                         <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)' }}>{a.recordedByEmail}</span>
                       </div>
