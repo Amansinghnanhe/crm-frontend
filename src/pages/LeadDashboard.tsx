@@ -4,17 +4,19 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, Mail, Phone, FileText } from 'lucide-react';
 
+// Interface: Backend DTO ke sath synced h
 interface Lead {
   id: number;
   name: string;
   email: string;
   phone: string;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST';
+  assignedToAgentName: string; 
 }
 
 interface Activity {
   id: number;
-  activityType: string; // 👈 Fixed: Takki 'SYSTEM' aur 'STATUS_UPDATE' bhi support ho sake
+  activityType: string; 
   details: string;
   recordedByEmail: string;
 }
@@ -47,6 +49,7 @@ const AVATAR_COLORS = [
 ];
 
 function getInitials(name: string) {
+  if (!name) return "?";
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
@@ -61,63 +64,87 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [details, setDetails]           = useState('');
   const [agentEmail, setAgentEmail]     = useState('sales.agent@crm.com');
 
-  // 👈 Change 1: Base URL fixed matching context-path
+  // 1. FIXED: Backend API endpoint path ko '/api/v1/leads' par map kiya 🎯
   const API     = 'http://localhost:8080/api/v1/leads'; 
   const headers = { Authorization: `Bearer ${token}` };
 
-  const fetchLeads      = async () => { const r = await axios.get(API, { headers }); setLeads(r.data); };
+  const fetchLeads = async () => { 
+    try {
+      const r = await axios.get(API, { headers }); 
+      setLeads(r.data); 
+    } catch (error: any) {
+      handleApiError(error);
+    }
+  };
   
-  // 👈 Fix: Backend controller me `@GetMapping("/{id}")` lead details deta hai, activities fetch karne ka naya tarika 
-  // ya separate service ke hisab se, agar aapka timeline isi path pe hai:
+  // 2. FIXED: Backend array response ko sahi se read karne ke liye endpoint badla 🟢
   const fetchActivities = async (id: number) => { 
      try {
-       // Note: Agar aapka activity controller different mapping par hai toh use change karein, 
-       // abhi hum details ke liye handle kar rahe hain.
-       const r = await axios.get(`${API}/${id}`, { headers }); 
-       // Agar backend direct single lead response me activity bhej raha hai:
-       if(r.data.activities) { setActivities(r.data.activities); }
-     } catch(e) { console.log(e); }
+       const r = await axios.get(`${API}/${id}/activities`, { headers }); 
+       if (Array.isArray(r.data)) { 
+         setActivities(r.data); 
+       } else {
+         setActivities([]);
+       }
+     } catch(e) { 
+       console.error("Error fetching activities:", e); 
+     }
+  };
+
+  const handleApiError = (error: any) => {
+    if (error.response && error.response.data && error.response.data.message) {
+      alert(`Error: ${error.response.data.message}`); 
+    } else {
+      alert("Something went wrong with the server.");
+    }
   };
 
   useEffect(() => { fetchLeads(); }, []);
 
-  const handleSelectLead  = (lead: Lead) => { 
+  const handleSelectLead = (lead: Lead) => { 
     setSelectedLead(lead); 
     fetchActivities(lead.id); 
   };
 
-  const handleAddLead     = async (e: React.FormEvent) => {
+  const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
-    setName(''); setEmail(''); setPhone('');
-    fetchLeads();
-  };
-
-  // 👈 Change 2: Naya Status Update handler (Jo humne abhi backend me test kiya!)
-  const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
-      // Backend format: PATCH /leads/{id}/status?status=VALUE (Body will be null)
-      const response = await axios.patch(`${API}/${leadId}/status?status=${newStatus}`, null, { headers });
-      
-      // State ko update karo taaki UI par naya status turant dikhe
-      setSelectedLead(response.data);
-      fetchLeads(); // Poori list refresh karo taaki sidebar status bhi change ho jaye
-    } catch (error) {
-      console.error("Error updating status:", error);
+      await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
+      setName(''); setEmail(''); setPhone('');
+      fetchLeads();
+    } catch (error: any) {
+      handleApiError(error);
     }
   };
 
+  // 3. FIXED: Status change hone ke baad list aur timeline dono refresh hongi 💥
+  const handleStatusChange = async (leadId: number, newStatus: string) => {
+    try {
+      const response = await axios.patch(`${API}/${leadId}/status?status=${newStatus}`, null, { headers });
+      setSelectedLead(response.data);
+      fetchLeads(); 
+      fetchActivities(leadId); // Timeline refresh taaki SYSTEM card dikhe
+    } catch (error: any) {
+      handleApiError(error); 
+    }
+  };
+
+  // 4. FIXED: Activity POST path aur save ke baad UI update handle kiya 🚀
   const handleLogActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
-    await axios.post(`${API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
-    setDetails('');
-    fetchActivities(selectedLead.id);
+    try {
+      await axios.post(`${API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
+      setDetails('');
+      fetchActivities(selectedLead.id);
+    } catch (error: any) {
+      handleApiError(error);
+    }
   };
 
   const stats = [
     { label: 'Total Leads',       value: leads.length },
-    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,       sub: 'uncontacted'       },
+    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,      sub: 'uncontacted'       },
     { label: 'Qualified',         value: leads.filter(l => l.status === 'QUALIFIED').length, sub: 'ready to close'    },
     { label: 'Activities',        value: activities.length,                                  sub: 'interactions total' },
   ];
@@ -190,7 +217,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     fontWeight: 700,
     border: 'none',
     cursor: 'pointer',
-    shadowColor: 'rgba(168,85,247,0.50)',
     fontFamily: 'Poppins, sans-serif',
     transition: 'transform 0.15s, box-shadow 0.15s',
   };
@@ -306,10 +332,12 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                       background:av.bg, color:av.color,
                       display:'flex', alignItems:'center', justifyContent:'center',
                       fontSize:11, fontWeight:700,
-                    }}>{getInitials(lead.name)}</div>
+                    }}>={getInitials(lead.name)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.name}</div>
-                      <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.email}</div>
+                      <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        Agent: {lead.assignedToAgentName || 'Unassigned'}
+                      </div>
                     </div>
                     <span style={{
                       fontSize:8, fontWeight:700, padding:'2px 8px', borderRadius:999, flexShrink:0,
@@ -365,7 +393,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                   </div>
                 </div>
                 
-                {/* 👈 Change 2 (UI Integration): Status Badge ko Dropdown me convert kar diya taaki status change ho sake */}
                 <select 
                   value={selectedLead.status} 
                   onChange={(e) => handleStatusChange(selectedLead.id, e.target.value)}
