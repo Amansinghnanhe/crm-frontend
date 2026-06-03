@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, Mail, Phone, FileText } from 'lucide-react';
+import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight } from 'lucide-react'; // 👈 Icons add kiye
 
-// Interface: Backend DTO ke sath synced h
 interface Lead {
   id: number;
   name: string;
@@ -64,20 +63,30 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [details, setDetails]           = useState('');
   const [agentEmail, setAgentEmail]     = useState('sales.agent@crm.com');
 
-  // 1. FIXED: Backend API endpoint path ko '/api/v1/leads' par map kiya 🎯
+  // 🔥 PAGINATION STATES ADD KIYA
+  const [page, setPage]                 = useState(0); 
+  const [size, setSize]                 = useState(10); // Ek baar me 10 leads dikhane ke liye
+  const [totalPages, setTotalPages]     = useState(0);
+  const [totalElements, setTotalElements] = useState(0); // Stats me total leads dikhane ke liye
+
   const API     = 'http://localhost:8080/api/v1/leads'; 
   const headers = { Authorization: `Bearer ${token}` };
 
+  // 🔥 FETCH LEADS KO UPDATE KIYA PAGINATION KE SATH
   const fetchLeads = async () => { 
     try {
-      const r = await axios.get(API, { headers }); 
-      setLeads(r.data); 
+      // API me page aur size bhej rahe hain
+      const r = await axios.get(`${API}?page=${page}&size=${size}`, { headers }); 
+      
+      // Backend ab Page object dega, isiliye .content se array nikalenge
+      setLeads(r.data.content || []); 
+      setTotalPages(r.data.totalPages || 0);
+      setTotalElements(r.data.totalElements || 0);
     } catch (error: any) {
       handleApiError(error);
     }
   };
   
-  // 2. FIXED: Backend array response ko sahi se read karne ke liye endpoint badla 🟢
   const fetchActivities = async (id: number) => { 
      try {
        const r = await axios.get(`${API}/${id}/activities`, { headers }); 
@@ -99,7 +108,10 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
-  useEffect(() => { fetchLeads(); }, []);
+  // 🔥 JAB BHI PAGE BADLEGA, DATA APNE AAP MERGE/FETCH HO JAYEGA
+  useEffect(() => { 
+    fetchLeads(); 
+  }, [page]);
 
   const handleSelectLead = (lead: Lead) => { 
     setSelectedLead(lead); 
@@ -111,25 +123,24 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     try {
       await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
       setName(''); setEmail(''); setPhone('');
+      setPage(0); // Naya lead aane par first page par bhej do
       fetchLeads();
     } catch (error: any) {
       handleApiError(error);
     }
   };
 
-  // 3. FIXED: Status change hone ke baad list aur timeline dono refresh hongi 💥
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
       const response = await axios.patch(`${API}/${leadId}/status?status=${newStatus}`, null, { headers });
       setSelectedLead(response.data);
       fetchLeads(); 
-      fetchActivities(leadId); // Timeline refresh taaki SYSTEM card dikhe
+      fetchActivities(leadId); 
     } catch (error: any) {
       handleApiError(error); 
     }
   };
 
-  // 4. FIXED: Activity POST path aur save ke baad UI update handle kiya 🚀
   const handleLogActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
@@ -142,10 +153,11 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
+  // 🔥 Stats me totalElements use kiya array length ke badle
   const stats = [
-    { label: 'Total Leads',       value: leads.length },
-    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,      sub: 'uncontacted'       },
-    { label: 'Qualified',         value: leads.filter(l => l.status === 'QUALIFIED').length, sub: 'ready to close'    },
+    { label: 'Total Leads',       value: totalElements },
+    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,      sub: 'on current page'   },
+    { label: 'Qualified',         value: leads.filter(l => l.status === 'QUALIFIED').length, sub: 'on current page'    },
     { label: 'Activities',        value: activities.length,                                  sub: 'interactions total' },
   ];
 
@@ -348,6 +360,54 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
               })}
             </div>
           </div>
+
+          {/* 🔥 4. UI: PAGINATION CONTROLS CONTROLLER ADDED HERE */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            borderTop: '1px solid rgba(255,255,255,0.07)',
+            background: 'rgba(0,0,0,0.15)',
+            flexShrink: 0
+          }}>
+            <button 
+              disabled={page === 0}
+              onClick={() => setPage(prev => Math.max(0, prev - 1))}
+              style={{
+                background: page === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10,
+                padding: '5px 8px',
+                cursor: page === 0 ? 'not-allowed' : 'pointer',
+                color: page === 0 ? 'rgba(255,255,255,0.2)' : '#fff',
+                display: 'flex', alignItems: 'center'
+              }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+              Page {page + 1} of {Math.max(1, totalPages)}
+            </span>
+
+            <button 
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(prev => prev + 1)}
+              style={{
+                background: page >= totalPages - 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10,
+                padding: '5px 8px',
+                cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                color: page >= totalPages - 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+                display: 'flex', alignItems: 'center'
+              }}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
         </div>
 
         {/* ── RIGHT PANEL ── */}
@@ -379,8 +439,9 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
               <div style={{ padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                   {(() => {
+                    // Match unique lead logically across the state array
                     const idx = leads.findIndex(l => l.id === selectedLead.id);
-                    const av  = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                    const av  = AVATAR_COLORS[idx !== -1 ? idx % AVATAR_COLORS.length : 0];
                     return (
                       <div style={{ width:48, height:48, borderRadius:'50%', background:av.bg, color:av.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:700 }}>
                         {getInitials(selectedLead.name)}
@@ -398,7 +459,8 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                   onChange={(e) => handleStatusChange(selectedLead.id, e.target.value)}
                   style={{
                     padding:'6px 16px', 
-                    borderRadius:999,
+                    borderRadius999: 999, // Fixing minor standard format fallback
+                    borderRadius: 999,
                     background: STATUS_GRADIENT[selectedLead.status],
                     fontSize:12, 
                     fontWeight:700, 
