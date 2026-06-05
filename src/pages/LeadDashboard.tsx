@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight } from 'lucide-react'; // 👈 Icons add kiye
+import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Lead {
   id: number;
@@ -18,6 +18,18 @@ interface Activity {
   activityType: string; 
   details: string;
   recordedByEmail: string;
+}
+
+// 🔥 NAYA INTERFACE: Backend Dashboard API Response ke liye
+interface LeadStatusCount {
+  status: string;
+  count: number;
+}
+
+interface DashboardStats {
+  totalLeads: number;
+  totalActivities: number;
+  leadBYStatus: LeadStatusCount[];
 }
 
 interface Props {
@@ -63,22 +75,38 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [details, setDetails]           = useState('');
   const [agentEmail, setAgentEmail]     = useState('sales.agent@crm.com');
 
-  // 🔥 PAGINATION STATES ADD KIYA
+  // PAGINATION STATES
   const [page, setPage]                 = useState(0); 
-  const [size, setSize]                 = useState(10); // Ek baar me 10 leads dikhane ke liye
+  const [size, setSize]                 = useState(10); 
   const [totalPages, setTotalPages]     = useState(0);
-  const [totalElements, setTotalElements] = useState(0); // Stats me total leads dikhane ke liye
+  const [totalElements, setTotalElements] = useState(0);
 
-  const API     = 'http://localhost:8080/api/v1/leads'; 
+  // 🔥 NAYA STATE: Global Backend Dashboard Stats ko hold karne ke liye
+  const [dbStats, setDbStats] = useState<DashboardStats>({
+    totalLeads: 0,
+    totalActivities: 0,
+    leadBYStatus: []
+  });
+
+  const LEADS_API = 'http://localhost:8080/api/v1/leads'; 
+  const DASHBOARD_API = 'http://localhost:8080/api/dashboard/stats'; // 🚀 Backend custom endpoint
   const headers = { Authorization: `Bearer ${token}` };
 
-  // 🔥 FETCH LEADS KO UPDATE KIYA PAGINATION KE SATH
+  // 🔥 DASHBOARD API CALL: Database se fresh live stats khichne ke liye
+  const fetchDashboardStats = async () => {
+    try {
+      const r = await axios.get(DASHBOARD_API, { headers });
+      if (r.data) {
+        setDbStats(r.data);
+      }
+    } catch (error) {
+      console.error("Dashboard stats fetch karne me error aayi:", error);
+    }
+  };
+
   const fetchLeads = async () => { 
     try {
-      // API me page aur size bhej rahe hain
-      const r = await axios.get(`${API}?page=${page}&size=${size}`, { headers }); 
-      
-      // Backend ab Page object dega, isiliye .content se array nikalenge
+      const r = await axios.get(`${LEADS_API}?page=${page}&size=${size}`, { headers }); 
       setLeads(r.data.content || []); 
       setTotalPages(r.data.totalPages || 0);
       setTotalElements(r.data.totalElements || 0);
@@ -89,7 +117,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   
   const fetchActivities = async (id: number) => { 
      try {
-       const r = await axios.get(`${API}/${id}/activities`, { headers }); 
+       const r = await axios.get(`${LEADS_API}/${id}/activities`, { headers }); 
        if (Array.isArray(r.data)) { 
          setActivities(r.data); 
        } else {
@@ -108,9 +136,10 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
-  // 🔥 JAB BHI PAGE BADLEGA, DATA APNE AAP MERGE/FETCH HO JAYEGA
+  // 🔥 EFFECT SYNC: Jab page badle tab leads lao, aur dashboard analytics refresh karo
   useEffect(() => { 
     fetchLeads(); 
+    fetchDashboardStats(); // 🚀 Global metrics loader
   }, [page]);
 
   const handleSelectLead = (lead: Lead) => { 
@@ -121,10 +150,11 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post(API, { name, email, phone, status: 'NEW' }, { headers });
+      await axios.post(LEADS_API, { name, email, phone, status: 'NEW' }, { headers });
       setName(''); setEmail(''); setPhone('');
-      setPage(0); // Naya lead aane par first page par bhej do
+      setPage(0); 
       fetchLeads();
+      fetchDashboardStats(); // 🚀 Lead add hote hi stats sync karo
     } catch (error: any) {
       handleApiError(error);
     }
@@ -132,10 +162,11 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
-      const response = await axios.patch(`${API}/${leadId}/status?status=${newStatus}`, null, { headers });
+      const response = await axios.patch(`${LEADS_API}/${leadId}/status?status=${newStatus}`, null, { headers });
       setSelectedLead(response.data);
       fetchLeads(); 
       fetchActivities(leadId); 
+      fetchDashboardStats(); // 🚀 Status change hone par group metrics refresh karo
     } catch (error: any) {
       handleApiError(error); 
     }
@@ -145,20 +176,27 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     e.preventDefault();
     if (!selectedLead) return;
     try {
-      await axios.post(`${API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
+      await axios.post(`${LEADS_API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
       setDetails('');
       fetchActivities(selectedLead.id);
+      fetchDashboardStats(); // 🚀 Activity log hone par metrics update karo
     } catch (error: any) {
       handleApiError(error);
     }
   };
 
-  // 🔥 Stats me totalElements use kiya array length ke badle
+  // 🔥 Helper function status-wise count find karne ke liye jo dashboard array se match karega
+  const getStatusCount = (statusName: string) => {
+    const found = dbStats.leadBYStatus.find(item => item.status === statusName);
+    return found ? found.count : 0;
+  };
+
+  // 🔥 FIXED STATS CARDS: Ab ye local code filter nahi balki DB level real metrics dikha raha hai
   const stats = [
-    { label: 'Total Leads',       value: totalElements },
-    { label: 'New / Uncontacted', value: leads.filter(l => l.status === 'NEW').length,      sub: 'on current page'   },
-    { label: 'Qualified',         value: leads.filter(l => l.status === 'QUALIFIED').length, sub: 'on current page'    },
-    { label: 'Activities',        value: activities.length,                                  sub: 'interactions total' },
+    { label: 'Total Leads (DB)',     value: dbStats.totalLeads,         sub: 'Total database entries' },
+    { label: 'New / Uncontacted',    value: getStatusCount('NEW'),      sub: 'All entries with NEW status' },
+    { label: 'Qualified Leads',      value: getStatusCount('QUALIFIED'),sub: 'All qualified opportunities' },
+    { label: 'Total Activities',     value: dbStats.totalActivities,    sub: 'Total cumulative logs' },
   ];
 
   /* ── shared inline styles ── */
@@ -361,7 +399,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
             </div>
           </div>
 
-          {/* 🔥 4. UI: PAGINATION CONTROLS CONTROLLER ADDED HERE */}
+          {/* PAGINATION CONTROLS */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -439,7 +477,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
               <div style={{ padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                   {(() => {
-                    // Match unique lead logically across the state array
                     const idx = leads.findIndex(l => l.id === selectedLead.id);
                     const av  = AVATAR_COLORS[idx !== -1 ? idx % AVATAR_COLORS.length : 0];
                     return (
@@ -459,7 +496,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                   onChange={(e) => handleStatusChange(selectedLead.id, e.target.value)}
                   style={{
                     padding:'6px 16px', 
-                    borderRadius999: 999, // Fixing minor standard format fallback
                     borderRadius: 999,
                     background: STATUS_GRADIENT[selectedLead.status],
                     fontSize:12, 
@@ -520,7 +556,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
                         <span style={{
-                          fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius:999,
+                          fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius999: 999, borderRadius: 999,
                           background: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? 'rgba(6,182,212,0.2)' : 'rgba(124,58,237,0.2)', 
                           color: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? '#67e8f9' : '#c4b5fd', 
                           border: '1px solid rgba(124,58,237,0.28)',
