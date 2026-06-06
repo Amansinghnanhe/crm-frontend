@@ -20,7 +20,16 @@ interface Activity {
   recordedByEmail: string;
 }
 
-// 🔥 NAYA INTERFACE: Backend Dashboard API Response ke liye
+// 🔥 NAYA INTERFACE: Lead Status History ke liye
+interface LeadStatusHistory {
+  id: number;
+  oldStatus: string;
+  newStatus: string;
+  changedBy: string;
+  changedAt: string; 
+}
+
+// Backend Dashboard API Response ke liye
 interface LeadStatusCount {
   status: string;
   count: number;
@@ -68,6 +77,10 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [leads, setLeads]               = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activities, setActivities]     = useState<Activity[]>([]);
+  
+  // 🔥 NAYA STATE: Status History List ko save karne ke liye
+  const [statusHistory, setStatusHistory] = useState<LeadStatusHistory[]>([]);
+  
   const [name,  setName]                = useState('');
   const [email, setEmail]               = useState('');
   const [phone, setPhone]               = useState('');
@@ -81,7 +94,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [totalPages, setTotalPages]     = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  // 🔥 NAYA STATE: Global Backend Dashboard Stats ko hold karne ke liye
+  // NAYA STATE: Global Backend Dashboard Stats ko hold karne ke liye
   const [dbStats, setDbStats] = useState<DashboardStats>({
     totalLeads: 0,
     totalActivities: 0,
@@ -89,10 +102,10 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   });
 
   const LEADS_API = 'http://localhost:8080/api/v1/leads'; 
-  const DASHBOARD_API = 'http://localhost:8080/api/dashboard/stats'; // 🚀 Backend custom endpoint
+  const DASHBOARD_API = 'http://localhost:8080/api/dashboard/stats'; 
   const headers = { Authorization: `Bearer ${token}` };
 
-  // 🔥 DASHBOARD API CALL: Database se fresh live stats khichne ke liye
+  // DASHBOARD_API CALL
   const fetchDashboardStats = async () => {
     try {
       const r = await axios.get(DASHBOARD_API, { headers });
@@ -128,6 +141,20 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
      }
   };
 
+  // 🔥 NAYA FUNCTION: Backend repository se status history lane ke liye
+  const fetchStatusHistory = async (id: number) => {
+    try {
+      const r = await axios.get(`${LEADS_API}/${id}/status-history`, { headers }); 
+      if (Array.isArray(r.data)) { 
+        setStatusHistory(r.data); 
+      } else {
+        setStatusHistory([]);
+      }
+    } catch(e) { 
+      console.error("Error fetching status history:", e); 
+    }
+  };
+
   const handleApiError = (error: any) => {
     if (error.response && error.response.data && error.response.data.message) {
       alert(`Error: ${error.response.data.message}`); 
@@ -136,15 +163,16 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
-  // 🔥 EFFECT SYNC: Jab page badle tab leads lao, aur dashboard analytics refresh karo
+  // EFFECT SYNC
   useEffect(() => { 
     fetchLeads(); 
-    fetchDashboardStats(); // 🚀 Global metrics loader
+    fetchDashboardStats(); 
   }, [page]);
 
   const handleSelectLead = (lead: Lead) => { 
     setSelectedLead(lead); 
     fetchActivities(lead.id); 
+    fetchStatusHistory(lead.id); // 🔥 Lead select hote hi history load karo
   };
 
   const handleAddLead = async (e: React.FormEvent) => {
@@ -154,7 +182,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       setName(''); setEmail(''); setPhone('');
       setPage(0); 
       fetchLeads();
-      fetchDashboardStats(); // 🚀 Lead add hote hi stats sync karo
+      fetchDashboardStats(); 
     } catch (error: any) {
       handleApiError(error);
     }
@@ -166,7 +194,8 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       setSelectedLead(response.data);
       fetchLeads(); 
       fetchActivities(leadId); 
-      fetchDashboardStats(); // 🚀 Status change hone par group metrics refresh karo
+      fetchStatusHistory(leadId); // 🔥 Status change hote hi fresh history sync karo
+      fetchDashboardStats(); 
     } catch (error: any) {
       handleApiError(error); 
     }
@@ -179,19 +208,17 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       await axios.post(`${LEADS_API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
       setDetails('');
       fetchActivities(selectedLead.id);
-      fetchDashboardStats(); // 🚀 Activity log hone par metrics update karo
+      fetchDashboardStats(); 
     } catch (error: any) {
       handleApiError(error);
     }
   };
 
-  // 🔥 Helper function status-wise count find karne ke liye jo dashboard array se match karega
   const getStatusCount = (statusName: string) => {
     const found = dbStats.leadBYStatus.find(item => item.status === statusName);
     return found ? found.count : 0;
   };
 
-  // 🔥 FIXED STATS CARDS: Ab ye local code filter nahi balki DB level real metrics dikha raha hai
   const stats = [
     { label: 'Total Leads (DB)',     value: dbStats.totalLeads,         sub: 'Total database entries' },
     { label: 'New / Uncontacted',    value: getStatusCount('NEW'),      sub: 'All entries with NEW status' },
@@ -382,7 +409,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                       background:av.bg, color:av.color,
                       display:'flex', alignItems:'center', justifyContent:'center',
                       fontSize:11, fontWeight:700,
-                    }}>={getInitials(lead.name)}</div>
+                    }}>{getInitials(lead.name)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.name}</div>
                       <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -540,13 +567,14 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </form>
               </div>
 
-              {/* Timeline */}
+              {/* Combined Timelines Container */}
               <div style={{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
+                
+                {/* ── SECTION A: ACTIVITY TIMELINE ── */}
                 <div style={sectionLabel}>🕐 Activity Timeline</div>
                 {activities.length === 0 ? (
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:80, gap:4 }}>
-                    <div style={{ fontSize:13, color:'rgba(255,255,255,0.30)' }}>No activities yet</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,0.18)' }}>Log your first interaction above</div>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:70, gap:4, marginBottom:15 }}>
+                    <div style={{ fontSize:12, color:'rgba(255,255,255,0.30)' }}>No activities yet</div>
                   </div>
                 ) : (
                   [...activities].reverse().map(a => (
@@ -556,7 +584,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
                         <span style={{
-                          fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius999: 999, borderRadius: 999,
+                          fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius: 999,
                           background: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? 'rgba(6,182,212,0.2)' : 'rgba(124,58,237,0.2)', 
                           color: a.activityType === 'SYSTEM' || a.activityType === 'STATUS_UPDATE' ? '#67e8f9' : '#c4b5fd', 
                           border: '1px solid rgba(124,58,237,0.28)',
@@ -567,6 +595,37 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     </div>
                   ))
                 )}
+
+                {/* Divider Line */}
+                <hr style={{ border: '0', borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '15px 0' }} />
+
+                {/* ── 🔥 SECTION B: STATUS AUDIT HISTORY LOG ── */}
+                <div style={sectionLabel}>🛡️ Status History Log (Naya)</div>
+                {statusHistory.length === 0 ? (
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.2)', textAlign:'center', padding:'10px' }}>
+                    No status changes recorded yet.
+                  </div>
+                ) : (
+                  statusHistory.map(h => (
+                    <div key={h.id} style={{
+                      padding:'10px 12px', borderRadius:12, marginBottom:6,
+                      background:'rgba(6,182,212,0.05)', border:'1px solid rgba(6,182,212,0.15)',
+                    }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:'#67e8f9' }}>
+                          {h.oldStatus || 'NONE'} ➜ {h.newStatus}
+                        </span>
+                        <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)' }}>
+                          By: {h.changedBy}
+                        </span>
+                      </div>
+                      <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', textAlign: 'right' }}>
+                        {new Date(h.changedAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+
               </div>
             </div>
           )}
