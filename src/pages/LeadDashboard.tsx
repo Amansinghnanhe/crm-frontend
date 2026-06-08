@@ -188,13 +188,24 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
+  // 🔥 FIXED METHOD: Backend Controller aur Response mapping ke sath full optimize kar diya hai
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
-      const response = await axios.patch(`${LEADS_API}/${leadId}/status?status=${newStatus}`, null, { headers });
-      setSelectedLead(response.data);
+      // 🟢 Request exact backend endpoints (?status=) aur secure tokens ke sath clear ho rahi hai
+      await axios.patch(`${LEADS_API}/${leadId}/status?status=${newStatus}`, null, { headers });
+      
+      // Local Component state ko securely update karte hain bina dependency crash ke
+      if (selectedLead && selectedLead.id === leadId) {
+        setSelectedLead({
+          ...selectedLead,
+          status: newStatus as 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST'
+        });
+      }
+
+      // Poora State Grid sync rakhte hain
       fetchLeads(); 
       fetchActivities(leadId); 
-      fetchStatusHistory(leadId); // 🔥 Status change hote hi fresh history sync karo
+      fetchStatusHistory(leadId); // 🔥 Instant Audit list reload
       fetchDashboardStats(); 
     } catch (error: any) {
       handleApiError(error); 
