@@ -1,8 +1,12 @@
 // src/pages/LeadDashboard.tsx
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Naye types aur service functions ko import kiya
+// import { DashboardStats } from '../types/dashboard';
+// import { getDashboardStats } from '../services/dashboardService';
+
 
 interface Lead {
   id: number;
@@ -20,24 +24,12 @@ interface Activity {
   recordedByEmail: string;
 }
 
-// 🔥 FIXED INTERFACE: Backend class 'LeadStatusHistory' ke variables se match kiya
 interface LeadStatusHistory {
   id: number;
   oldStatus: string;
   newStatus: string;
-  changeByEmail: string; // 🟢 Sahi Key Name
+  changeByEmail: string; 
   changedAt: string; 
-}
-
-interface LeadStatusCount {
-  status: string;
-  count: number;
-}
-
-interface DashboardStats {
-  totalLeads: number;
-  totalActivities: number;
-  leadBYStatus: LeadStatusCount[];
 }
 
 interface Props {
@@ -91,29 +83,28 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [totalPages, setTotalPages]     = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Clean State Linked with centralized system
   const [dbStats, setDbStats] = useState<DashboardStats>({
     totalLeads: 0,
     totalActivities: 0,
     leadBYStatus: []
   });
 
-  // 🔥 FIXED: Base API URLs ko backend controller se match kiya (/api/v1 hata diya)
   const LEADS_API = 'http://localhost:8080/leads'; 
-  const DASHBOARD_API = 'http://localhost:8080/leads'; // Agar dashboard stats leads controller me hi hain to varna same rkho
   const headers = { Authorization: `Bearer ${token}` };
 
+  // Refactored Service integration
   const fetchDashboardStats = async () => {
     try {
-      const r = await axios.get(`${LEADS_API}/dashboard/stats`, { headers }); // Custom check mapping as per your stats routing
-      if (r.data) {
-        setDbStats(r.data);
+      const data = await getDashboardStats(headers);
+      if (data) {
+        setDbStats(data);
       }
     } catch (error) {
       console.error("Dashboard stats fetch karne me error aayi:", error);
     }
   };
 
-  // 🔥 FIXED: Custom Pagination flow sync kiya
   const fetchLeads = async () => { 
     try {
       const r = await axios.get(`${LEADS_API}?page=${page}&size=${size}`, { headers }); 
@@ -138,7 +129,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
      }
   };
 
-  // 🔥 FIXED: Backend Controller mapping standard `/{id}/history` ke sath setup ki gayi
   const fetchStatusHistory = async (id: number) => {
     try {
       const r = await axios.get(`${LEADS_API}/${id}/history`, { headers }); 
@@ -162,12 +152,12 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
   useEffect(() => { 
     fetchLeads(); 
-    // fetchDashboardStats(); // Agar stats api trigger karni h to uncomment rkho
+    fetchDashboardStats(); // 🔥 LIVE BACKEND INTEGRATION: Page load par stats update ho rhe h
   }, [page]);
 
   const handleSelectLead = (lead: Lead) => { 
     setSelectedLead(lead); 
-    // fetchActivities(lead.id); // Base dynamic loading as per backend setup
+    fetchActivities(lead.id); 
     fetchStatusHistory(lead.id); 
   };
 
@@ -178,12 +168,12 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       setName(''); setEmail(''); setPhone('');
       setPage(0); 
       fetchLeads();
+      fetchDashboardStats(); // 🔥 Lead add hote hi top analytics update ho jayega
     } catch (error: any) {
       handleApiError(error);
     }
   };
 
-  // 🔥 FIXED METHOD: Request parameters (`?status=`) ko sahi pass kiya jisse Backend map kar sake
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
       await axios.patch(`${LEADS_API}/${leadId}/status?status=${newStatus}`, null, { headers });
@@ -197,6 +187,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
       fetchLeads(); 
       fetchStatusHistory(leadId); 
+      fetchDashboardStats(); // 🔥 Status badalte hi dropdown metrics synchronise honge
     } catch (error: any) {
       handleApiError(error); 
     }
@@ -209,12 +200,14 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       await axios.post(`${LEADS_API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
       setDetails('');
       fetchActivities(selectedLead.id);
+      fetchDashboardStats(); // 🔥 Action log hote hi dynamic counting hit hogi
     } catch (error: any) {
       handleApiError(error);
     }
   };
 
   const getStatusCount = (statusName: string) => {
+    if (!dbStats.leadBYStatus) return 0;
     const found = dbStats.leadBYStatus.find(item => item.status === statusName);
     return found ? found.count : 0;
   };
@@ -464,7 +457,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
                 <hr style={{ border: '0', borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '15px 0' }} />
 
-                {/* 🔥 FIXED SECTION: changeByEmail key map success */}
+                {/* Status History Log */}
                 <div style={sectionLabel}>🛡️ Status History Log</div>
                 {statusHistory.length === 0 ? (
                   <div style={{ fontSize:11, color:'rgba(255,255,255,0.2)', textAlign:'center', padding:'10px' }}>No status changes recorded yet.</div>
