@@ -152,7 +152,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
   useEffect(() => { 
     fetchLeads(); 
-    fetchDashboardStats(); // 🔥 LIVE BACKEND INTEGRATION: Page load par stats update ho rhe h
+    fetchDashboardStats(); //  LIVE BACKEND INTEGRATION: Page load par stats update ho rhe h
   }, [page]);
 
   const handleSelectLead = (lead: Lead) => { 
@@ -168,7 +168,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       setName(''); setEmail(''); setPhone('');
       setPage(0); 
       fetchLeads();
-      fetchDashboardStats(); // 🔥 Lead add hote hi top analytics update ho jayega
+      fetchDashboardStats(); //  Lead add hote hi top analytics update ho jayega
     } catch (error: any) {
       handleApiError(error);
     }
@@ -187,7 +187,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
 
       fetchLeads(); 
       fetchStatusHistory(leadId); 
-      fetchDashboardStats(); // 🔥 Status badalte hi dropdown metrics synchronise honge
+      fetchDashboardStats(); //  Status badalte hi dropdown metrics synchronise honge
     } catch (error: any) {
       handleApiError(error); 
     }
@@ -200,7 +200,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       await axios.post(`${LEADS_API}/${selectedLead.id}/activities`, { activityType, details, recordedByEmail: agentEmail }, { headers });
       setDetails('');
       fetchActivities(selectedLead.id);
-      fetchDashboardStats(); // 🔥 Action log hote hi dynamic counting hit hogi
+      fetchDashboardStats(); //  Action log hote hi dynamic counting hit hogi
     } catch (error: any) {
       handleApiError(error);
     }
