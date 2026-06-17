@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
-// 💡 FIXED: Interface ko import type ke roop mein kiya gaya hai
+// Interface ko import type ke roop mein kiya gaya hai
 import type { DashboardStats } from '../types/dashboard';
 import { getDashboardStats, getDashboardLeads } from '../services/dashboardService';
 
@@ -69,7 +69,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [activities, setActivities]     = useState<Activity[]>([]);
   const [statusHistory, setStatusHistory] = useState<LeadStatusHistory[]>([]);
   
-  const [name,  setName]                = useState('');
+  const [name, setName]                 = useState('');
   const [email, setEmail]               = useState('');
   const [phone, setPhone]               = useState('');
   const [activityType, setActivityType] = useState<'CALL'|'EMAIL'|'MEETING'>('CALL');
@@ -145,6 +145,14 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     fetchLeads(); 
     fetchDashboardStats();
   }, [page, sortBy, sortDir, statusFilter]);
+
+  // ⚡ IMPROVEMENT: Agar user search query poori clear kar de, toh auto-fetch chalega
+  useEffect(() => {
+    if (searchQuery === '') {
+      setPage(0);
+      fetchLeads();
+    }
+  }, [searchQuery]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,8 +276,8 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   return (
     <div style={{ height:'100vh', padding: '20px', display:'flex', flexDirection:'column', color:'#fff', background: '#0f172a', overflow: 'hidden' }}>
 
-      {/* ── HEADER ── */}
-      <div style={{ display:'flex', alignItems:'center', justifyContnet:'space-between', marginBottom:16, flexShrink:0 }}>
+      {/* ── HEADER (FIXED: justifyContnet typo fixed here) ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:14, background:'linear-gradient(135deg,#d946ef,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>⚡</div>
           <div>
@@ -364,7 +372,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     <div style={{ width:34, height:34, borderRadius:'50%', flexShrink:0, background:av.bg, color:av.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{getInitials(lead.name)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.name}</div>
-                      <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Agent: {lead.assignedToAgentName || 'Unassigned Queue'}</div>
+                      <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace whiteSpace:'nowrap' }}>Agent: {lead.assignedToAgentName || 'Unassigned Queue'}</div>
                     </div>
                     <span style={{ fontSize:8, fontWeight:700, padding:'2px 8px', borderRadius:999, flexShrink:0, ...STATUS_BADGE_STYLE[lead.status] }}>{lead.status}</span>
                   </div>
@@ -452,7 +460,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 ) : (
                   activities.map(a => (
                     <div key={a.id} style={{ padding:'12px 14px', borderRadius:14, marginBottom:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContnet:'space-between', marginBottom:7 }}>
                         <span style={{ fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.15)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.25)' }}>{a.activityType}</span>
                         <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)' }}>{a.recordedByEmail}</span>
                       </div>

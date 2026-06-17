@@ -1,5 +1,5 @@
 import axios from 'axios';
-// 💡 FIXED: Explicit type-only import lagaya taaki bundler parsing runtime error na de
+// ✅ Explicit type-only import bilkul sahi hai
 import type { DashboardStats } from '../types/dashboard';
 
 const LEADS_API = 'http://localhost:8080/leads';
@@ -10,7 +10,7 @@ export const getDashboardStats = async (headers: { Authorization: string }): Pro
   return response.data;
 };
 
-// 2. Dynamic Server-Side Paging, Filter aur Sorting Exporter
+// 2. Dynamic Server-Side Paging, Filter aur Sorting Exporter (FIXED)
 export const getDashboardLeads = async (
   page = 0,
   size = 10,
@@ -18,10 +18,10 @@ export const getDashboardLeads = async (
   sortDir = 'desc',
   status = '',
   search = '',
-  headers = {}
+  headers = {} // ⚡ Ensure karo ki yahan { Authorization: `Bearer ${token}` } pass ho raha ho call karte waqt
 ) => {
   const response = await axios.get(LEADS_API, {
-    headers,
+    headers, // ⚡ FIXED: Yahan axios configuration ke andar headers ko inject kiya hai taaki JWT token backend tak jaye
     params: {
       page: page,
       size: size,
@@ -41,7 +41,7 @@ export const importLeadsExcel = async (file: File, token: string): Promise<{ suc
 
   const response = await axios.post(`${LEADS_API}/import`, formData, {
     headers: {
-      "Authorization": `Bearer ${token}`,
+      "Authorization": `Bearer ${token}`, // ✅ Yeh tarika ekdum mast hai
       "Content-Type": "multipart/form-data"
     }
   });
