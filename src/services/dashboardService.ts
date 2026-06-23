@@ -1,5 +1,5 @@
 import axios from 'axios';
-// ✅ Explicit type-only import bilkul sahi hai
+// Explicit type-only import bilkul sahi hai
 import type { DashboardStats } from '../types/dashboard';
 
 const LEADS_API = 'http://localhost:8080/leads';
@@ -14,14 +14,14 @@ export const getDashboardStats = async (headers: { Authorization: string }): Pro
 export const getDashboardLeads = async (
   page = 0,
   size = 10,
-  sortBy = 'createdAt',
+  sortBy = 'activityDate', // ✅ FIXED: Default sort param 'createdAt' se badal kar 'activityDate' kiya
   sortDir = 'desc',
   status = '',
   search = '',
-  headers = {} // ⚡ Ensure karo ki yahan { Authorization: `Bearer ${token}` } pass ho raha ho call karte waqt
+  headers = {} 
 ) => {
   const response = await axios.get(LEADS_API, {
-    headers, // ⚡ FIXED: Yahan axios configuration ke andar headers ko inject kiya hai taaki JWT token backend tak jaye
+    headers, 
     params: {
       page: page,
       size: size,
@@ -41,7 +41,7 @@ export const importLeadsExcel = async (file: File, token: string): Promise<{ suc
 
   const response = await axios.post(`${LEADS_API}/import`, formData, {
     headers: {
-      "Authorization": `Bearer ${token}`, // ✅ Yeh tarika ekdum mast hai
+      "Authorization": `Bearer ${token}`, 
       "Content-Type": "multipart/form-data"
     }
   });

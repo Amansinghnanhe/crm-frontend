@@ -19,6 +19,7 @@ interface Activity {
   activityType: string; 
   details: string;
   recordedByEmail: string;
+  activityDate: string; // ✅ FIXED: Backend variable ke sath sync kiya
 }
 
 interface LeadStatusHistory {
@@ -81,7 +82,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [size, setSize]                 = useState(10); 
   const [totalPages, setTotalPages]     = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  const [sortBy, setSortBy]             = useState('createdAt'); 
+  const [sortBy, setSortBy]             = useState('activityDate'); // ✅ FIXED: 'createdAt' se badal kar 'activityDate' kiya
   const [sortDir, setSortDir]           = useState('desc');
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery]   = useState('');
@@ -146,7 +147,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     fetchDashboardStats();
   }, [page, sortBy, sortDir, statusFilter]);
 
-  // ⚡ IMPROVEMENT: Agar user search query poori clear kar de, toh auto-fetch chalega
   useEffect(() => {
     if (searchQuery === '') {
       setPage(0);
@@ -276,7 +276,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   return (
     <div style={{ height:'100vh', padding: '20px', display:'flex', flexDirection:'column', color:'#fff', background: '#0f172a', overflow: 'hidden' }}>
 
-      {/* ── HEADER (FIXED: justifyContnet typo fixed here) ── */}
+      {/* ── HEADER ── */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:14, background:'linear-gradient(135deg,#d946ef,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>⚡</div>
@@ -372,7 +372,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                     <div style={{ width:34, height:34, borderRadius:'50%', flexShrink:0, background:av.bg, color:av.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{getInitials(lead.name)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{lead.name}</div>
-                      <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace whiteSpace:'nowrap' }}>Agent: {lead.assignedToAgentName || 'Unassigned Queue'}</div>
+                      <div style={{ fontSize:10, color:'rgba(103,232,249,0.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Agent: {lead.assignedToAgentName || 'Unassigned Queue'}</div>
                     </div>
                     <span style={{ fontSize:8, fontWeight:700, padding:'2px 8px', borderRadius:999, flexShrink:0, ...STATUS_BADGE_STYLE[lead.status] }}>{lead.status}</span>
                   </div>
@@ -460,9 +460,13 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 ) : (
                   activities.map(a => (
                     <div key={a.id} style={{ padding:'12px 14px', borderRadius:14, marginBottom:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ display:'flex', alignItems:'center', justifyContnet:'space-between', marginBottom:7 }}>
+                      {/* ✅ FIXED: justifyContnet typo fixed here & dynamic activityDate added */}
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
                         <span style={{ fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.15)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.25)' }}>{a.activityType}</span>
-                        <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)' }}>{a.recordedByEmail}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'end' }}>
+                          <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)' }}>{a.recordedByEmail}</span>
+                          <span style={{ fontSize:9, color:'rgba(255,255,255,0.25)', marginTop: 2 }}>{a.activityDate ? new Date(a.activityDate).toLocaleString() : ''}</span>
+                        </div>
                       </div>
                       <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', lineHeight:1.5 }}>{a.details}</div>
                     </div>
