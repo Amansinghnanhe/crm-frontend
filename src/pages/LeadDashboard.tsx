@@ -5,6 +5,10 @@ import { User, Mail, Phone, FileText, ChevronLeft, ChevronRight, Search, Filter 
 import type { DashboardStats } from '../types/dashboard';
 import { getDashboardStats, getDashboardLeads } from '../services/dashboardService';
 
+// 🔥 WEBSOCKET CORE LIBRARIES (SockJS + STOMP)
+import SockJS from 'sockjs-client';
+import Stomp from 'stompjs';
+
 interface Lead {
   id: number;
   name: string;
@@ -82,7 +86,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [size, setSize]                 = useState(10); 
   const [totalPages, setTotalPages]     = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  const [sortBy, setSortBy]             = useState('activityDate'); // ✅ FIXED: 'createdAt' se badal kar 'activityDate' kiya
+  const [sortBy, setSortBy]             = useState('activityDate'); // ✅ FIXED: 'activityDate' parameter database mappings ke liye lock hai
   const [sortDir, setSortDir]           = useState('desc');
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery]   = useState('');
@@ -142,6 +146,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
     }
   };
 
+  // Standard dependency effects criteria loaders
   useEffect(() => { 
     fetchLeads(); 
     fetchDashboardStats();
@@ -153,6 +158,52 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
       fetchLeads();
     }
   }, [searchQuery]);
+
+  // 🔥 CORE INTEGRATION: BACKGROUND WEBSOCKET CHANNEL LISTENER HOOK
+  useEffect(() => {
+    // 1. Handshake config pipeline set karo backend port standard route par
+    const socket = new SockJS('http://localhost:8080/ws');
+    const stompClient = Stomp.over(socket);
+
+    // Default verbose handshake metadata console trace skip karne ke liye empty block diya hai
+    stompClient.debug = () => {};
+
+    // 2. Client Connection handler build up start karo
+    stompClient.connect({}, (frame) => {
+      console.log('Successfully connected to Live Socket Channel Framework!');
+
+      // 3. Backend Message Broker Topic `/topic/leads` ko stream subscribe karo
+      stompClient.subscribe('/topic/leads', (message) => {
+        if (message.body) {
+          const streamEvent = JSON.parse(message.body);
+          console.log("WebSocket Broadcaster Engine Alert:", streamEvent);
+
+          // Check karo payload triggers agar create hua ya pipeline entity update hui
+          if (streamEvent.event === 'LEAD_CREATED' || streamEvent.event === 'STATUS_UPDATED') {
+            
+            // Server APIs data pipeline hit karke state table background fetch refresh trigger karo
+            fetchLeads();
+            fetchDashboardStats();
+            
+            // Critical Check: Agar user current active usi active profile card screen par hai, toh background stats sync automatic refresh karo
+            if (selectedLead && selectedLead.id === streamEvent.leadId) {
+              fetchActivities(streamEvent.leadId);
+              fetchStatusHistory(streamEvent.leadId);
+            }
+          }
+        }
+      });
+    }, (error) => {
+      console.error('WebSocket engine handshake pipeline failed error:', error);
+    });
+
+    // Component unmount logic (Browser route switches tab protection memory leaks controller cleanup block)
+    return () => {
+      if (stompClient && stompClient.connected) {
+        stompClient.disconnect();
+      }
+    };
+  }, [selectedLead]); // Dependencies array trigger logic trace criteria mapping references sync protection
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +277,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   };
 
   const stats = [
-    { label: 'Total Leads (DB)',     value: dbStats.totalLeads,        sub: 'Total database entries' },
+    { label: 'Total Leads (DB)',     value: dbStats.totalLeads,         sub: 'Total database entries' },
     { label: 'New Queue',            value: getStatusCount('NEW'),      sub: 'Entries with NEW status' },
     { label: 'Qualified Leads',      value: getStatusCount('QUALIFIED'),sub: 'All converted pipelines' },
     { label: 'Total Activities',     value: dbStats.totalActivities,    sub: 'Total cumulative logs' },
@@ -276,7 +327,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   return (
     <div style={{ height:'100vh', padding: '20px', display:'flex', flexDirection:'column', color:'#fff', background: '#0f172a', overflow: 'hidden' }}>
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER LAYOUT CONTAINER ── */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:14, background:'linear-gradient(135deg,#d946ef,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>⚡</div>
@@ -288,7 +339,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
         <button onClick={onLogout} style={{ padding:'9px 18px', borderRadius:14, background:'rgba(239,68,68,0.18)', border:'1px solid rgba(239,68,68,0.28)', color:'#fca5a5', fontSize:12, fontWeight:600, cursor:'pointer', marginLeft: 'auto' }}>⊕ Logout</button>
       </div>
 
-      {/* ── STATS ── */}
+      {/* ── METRICS ANALYTICS PANEL BLOCKS ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:12, flexShrink:0 }}>
         {stats.map((s, i) => (
           <div key={i} style={statCardStyle}>
@@ -299,7 +350,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
         ))}
       </div>
 
-      {/* SEARCH & FILTER ROW */}
+      {/* GLOBAL SEARCH CRITERIA INPUT CRADLE */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexShrink: 0 }}>
         <form onSubmit={handleSearchSubmit} style={{ flex: 1, position: 'relative' }}>
           <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
@@ -328,10 +379,10 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
         </div>
       </div>
 
-      {/* ── MAIN GRID ── */}
+      {/* ── WORKSPACE APPLICATION TWO-PANEL INTERFACE GRID ── */}
       <div style={{ display:'grid', gridTemplateColumns:'320px 1fr', gap:10, flex:1, minHeight:0 }}>
 
-        {/* ── LEFT PANEL ── */}
+        {/* ── LEAD CREATION AND LIST GENERATION VIEWPORT (LEFT) ── */}
         <div style={panelStyle}>
           <div style={{ padding:'14px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
             <form onSubmit={handleAddLead} style={{ display:'flex', flexDirection:'column' }}>
@@ -381,6 +432,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
             </div>
           </div>
 
+          {/* SERVER SIDE PAGINATION CONTROLLER MATRIX FOOTER */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.15)', flexShrink: 0 }}>
             <button disabled={page === 0} onClick={() => setPage(prev => Math.max(0, prev - 1))}
               style={{ background: page === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '5px 8px', cursor: page === 0 ? 'not-allowed' : 'pointer', color: page === 0 ? 'rgba(255,255,255,0.2)' : '#fff', display: 'flex', alignItems: 'center' }}>
@@ -394,7 +446,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
+        {/* ── DETAILED LEAD STREAM VIEWER CONSOLE (RIGHT PANEL) ── */}
         <div style={{ ...panelStyle, position:'relative', overflow:'hidden' }}>
           {!selectedLead ? (
             <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
@@ -432,6 +484,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </select>
               </div>
 
+              {/* LOG INTERACTION ACTIVITY COMPONENT STREAM */}
               <div style={{ padding:'14px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
                 <form onSubmit={handleLogActivity} style={{ display:'flex', flexDirection:'column', gap:8 }}>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
@@ -453,6 +506,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </form>
               </div>
 
+              {/* DYNAMIC SCROLL CONTAINER MATRIX */}
               <div style={{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.3px', color: 'rgba(255,255,255,0.32)', marginBottom: 10 }}>🕐 Activity Timeline Feed</div>
                 {activities.length === 0 ? (
@@ -460,7 +514,6 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
                 ) : (
                   activities.map(a => (
                     <div key={a.id} style={{ padding:'12px 14px', borderRadius:14, marginBottom:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)' }}>
-                      {/* ✅ FIXED: justifyContnet typo fixed here & dynamic activityDate added */}
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
                         <span style={{ fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius: 999, background: 'rgba(139,92,246,0.15)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.25)' }}>{a.activityType}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'end' }}>
