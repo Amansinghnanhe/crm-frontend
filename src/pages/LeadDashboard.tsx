@@ -86,7 +86,7 @@ const LeadDashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [size, setSize]                 = useState(10); 
   const [totalPages, setTotalPages]     = useState(0);
   const [totalElements, setTotalElements] = useState(0);
-  const [sortBy, setSortBy]             = useState('activityDate'); // ✅ FIXED: 'activityDate' parameter database mappings ke liye lock hai
+  const [sortBy, setSortBy]             = useState('activityDate'); // FIXED: 'activityDate' parameter database mappings ke liye lock hai
   const [sortDir, setSortDir]           = useState('desc');
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery]   = useState('');
